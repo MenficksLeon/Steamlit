@@ -97,5 +97,5 @@ folium.GeoJson(gdf, style_function=style_feat, tooltip=folium.GeoJsonTooltip(fie
 m.fit_bounds([[b[1], b[0]], [b[3], b[2]]])
 
 # --- 5. Mapa SIN scroll (altura calculada dinámicamente) ---
-map_height = 450  # Ajusta este valor según tu pantalla
+map_height = 600  # Ajusta este valor según tu pantalla
 st_folium(m, height=map_height, use_container_width=True)
