@@ -2,9 +2,14 @@ import streamlit as st
 import geopandas as gpd
 import pandas as pd
 import folium
+import numpy as np 
 from streamlit_folium import st_folium
 
-# 1. Carga y extracción jerárquica
+
+
+# Configuración de página SIN márgenes y layout compacto
+st.set_page_config(layout="wide", page_title="Dashboard", initial_sidebar_state="collapsed")
+# --- 1. Carga de datos (igual que antes) ---
 gdf = gpd.read_file("data/territorio.geojson")
 parts = gdf["jerarquia"].str.split("-", n=2, expand=True)
 gdf["Gerencia"] = parts[0]
@@ -17,32 +22,47 @@ gdf["Analista"] = gdf["jerarquia"].where(
     None
 )
 
-# 2. Sidebar con filtros (incluye "Todos")
-st.sidebar.header("Filtros")
+# --- 2. Sidebar (colapsable para ahorrar espacio) ---
+with st.sidebar:
+    st.header("Filtros")
+    ger_ops = ["Todos"] + sorted(gdf["Gerencia"].dropna().unique().tolist())
+    sel_ger = st.selectbox("Gerencia", ger_ops, index=0)
+    df_ger = gdf if sel_ger == "Todos" else gdf[gdf["Gerencia"] == sel_ger]
+    mesa_ops = ["Todos"] + sorted(df_ger["Mesa"].dropna().unique().tolist())
+    sel_mes = st.selectbox("Mesa", mesa_ops, index=0)
+    df_mes = df_ger if sel_mes == "Todos" else df_ger[df_ger["Mesa"] == sel_mes]
+    ana_ops = ["Todos"] + sorted(df_mes["Analista"].dropna().unique().tolist())
+    sel_ana = st.selectbox("Analista", ana_ops, index=0)
 
-# Gerencia
-ger_ops = ["Todos"] + sorted(gdf["Gerencia"].dropna().unique().tolist())
-sel_ger = st.sidebar.selectbox("Gerencia", ger_ops, index=0)
+# --- 3. KPIs DINÁMICOS (valores aleatorios por selección) ---
+def generar_kpis(gerencia, mesa, analista):
+    """Genera valores aleatorios basados en la selección actual"""
+    # Semilla reproducible basada en los filtros (para que sean consistentes)
+    semilla = hash(f"{gerencia}-{mesa}-{analista}") % (2**32)
+    np.random.seed(semilla)
+    
+    return {
+        "Saldo capital": f"${np.random.uniform(0.5, 2.0):.2f} M",
+        "Número de socias": str(np.random.randint(8000, 15000)),
+        "Mora": f"{np.random.uniform(5.0, 10.0):.1f}%",
+        "Número de grupos": str(np.random.randint(100, 300))
+    }
 
-# Mesa: filtrar None y duplicados
-df_ger = gdf if sel_ger == "Todos" else gdf[gdf["Gerencia"] == sel_ger]
-mesa_list = sorted(df_ger["Mesa"].dropna().unique().tolist())
-mesa_ops = ["Todos"] + mesa_list
-sel_mes = st.sidebar.selectbox("Mesa", mesa_ops, index=0)
+# Generar KPIs basados en los filtros actuales
+kpis = generar_kpis(sel_ger, sel_mes, sel_ana)
 
-# Analista: filtrar None y duplicados
-df_mes = df_ger if sel_mes == "Todos" else df_ger[df_ger["Mesa"] == sel_mes]
-ana_list = sorted(df_mes["Analista"].dropna().unique().tolist())
-ana_ops = ["Todos"] + ana_list
-sel_ana = st.sidebar.selectbox("Analista", ana_ops, index=0)
+# Mostrar KPIs en 4 columnas
+cols = st.columns(4)
+with cols[0]:
+    st.metric("Saldo capital", kpis["Saldo capital"])
+with cols[1]:
+    st.metric("Número de socias", kpis["Número de socias"])
+with cols[2]:
+    st.metric("Mora", kpis["Mora"])
+with cols[3]:
+    st.metric("Número de grupos", kpis["Número de grupos"])
 
-# 3. Indicadores arriba (estáticos de ejemplo)
-col1, col2, col3 = st.columns(3)
-col1.metric("Saldo capital", "$1.23 M")
-col2.metric("Número de socias", "123")
-col3.metric("Mora", "7%")
-
-# 4. Determinar subconjunto para centrar
+# --- 4. Mapa ajustado (sin espacio extra) ---
 if sel_ana != "Todos":
     df_fit = df_mes[df_mes["Analista"] == sel_ana]
 elif sel_mes != "Todos":
@@ -52,40 +72,30 @@ elif sel_ger != "Todos":
 else:
     df_fit = gdf
 
-b = df_fit.total_bounds  # [minx, miny, maxx, maxy]
-center_lat = (b[1] + b[3]) / 2
-center_lon = (b[0] + b[2]) / 2
+b = df_fit.total_bounds
+center_lat, center_lon = (b[1] + b[3]) / 2, (b[0] + b[2]) / 2
 
-# 5. Crear mapa
 m = folium.Map(location=[center_lat, center_lon], zoom_start=7)
 
 def style_feat(feat):
     jer = feat["properties"]["jerarquia"]
-    # fuera de gerencia oculta
+    opacity = 0.4  # Default
     if sel_ger != "Todos" and not jer.startswith(sel_ger):
         return {"fillOpacity": 0, "opacity": 0}
-    # opacidad base
     if sel_mes != "Todos":
-        opacity = 0.6 if jer.startswith(sel_mes) else 0.2
-    else:
-        opacity = 0.6
+        opacity = 0.4 if jer.startswith(sel_mes) else 0.1
     if sel_ana != "Todos":
         opacity = 0.4 if jer == sel_ana else 0.1
     return {
-        "fillColor":   feat["properties"].get("fill", "#cccccc"),
-        "color":       feat["properties"].get("stroke", "#000000"),
-        "weight":      feat["properties"].get("stroke-width", 1),
+        "fillColor": feat["properties"].get("fill", "#3388ff"),
+        "color": "#000000",
+        "weight": 1,
         "fillOpacity": opacity,
-        "opacity":     feat["properties"].get("stroke-opacity", 1),
     }
 
-folium.GeoJson(
-    gdf,
-    style_function=style_feat,
-    tooltip=folium.GeoJsonTooltip(fields=["jerarquia"])
-).add_to(m)
-
+folium.GeoJson(gdf, style_function=style_feat, tooltip=folium.GeoJsonTooltip(fields=["jerarquia"])).add_to(m)
 m.fit_bounds([[b[1], b[0]], [b[3], b[2]]])
 
-# 6. Mostrar
-st_folium(m, width=700, height=500)
+# --- 5. Mapa SIN scroll (altura calculada dinámicamente) ---
+map_height = 450  # Ajusta este valor según tu pantalla
+st_folium(m, height=map_height, use_container_width=True)
