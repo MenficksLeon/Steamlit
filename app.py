@@ -70,7 +70,7 @@ def style_feat(feat):
     else:
         opacity = 0.6
     if sel_ana != "Todos":
-        opacity = 0.6 if jer == sel_ana else 0.2
+        opacity = 0.4 if jer == sel_ana else 0.1
     return {
         "fillColor":   feat["properties"].get("fill", "#cccccc"),
         "color":       feat["properties"].get("stroke", "#000000"),
