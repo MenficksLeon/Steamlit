@@ -7,10 +7,10 @@ from streamlit_folium import st_folium
 
 
 
-# Configuración de página SIN márgenes y layout compacto
+
 st.set_page_config(layout="wide", page_title="Dashboard", initial_sidebar_state="collapsed")
 st.title("🌍 Monitor de Territorios")
-# --- 1. Carga de datos (igual que antes) ---
+
 gdf = gpd.read_file("data/territorio.geojson")
 parts = gdf["jerarquia"].str.split("-", n=2, expand=True)
 gdf["Gerencia"] = parts[0]
@@ -23,7 +23,7 @@ gdf["Analista"] = gdf["jerarquia"].where(
     None
 )
 
-# --- 2. Sidebar (colapsable para ahorrar espacio) ---
+
 with st.sidebar:
     st.header("Filtros")
     ger_ops = ["Todos"] + sorted(gdf["Gerencia"].dropna().unique().tolist())
@@ -35,10 +35,10 @@ with st.sidebar:
     ana_ops = ["Todos"] + sorted(df_mes["Analista"].dropna().unique().tolist())
     sel_ana = st.selectbox("Analista", ana_ops, index=0)
 
-# --- 3. KPIs DINÁMICOS (valores aleatorios por selección) ---
+
 def generar_kpis(gerencia, mesa, analista):
     """Genera valores aleatorios basados en la selección actual"""
-    # Semilla reproducible basada en los filtros (para que sean consistentes)
+
     semilla = hash(f"{gerencia}-{mesa}-{analista}") % (2**32)
     np.random.seed(semilla)
     
@@ -49,10 +49,10 @@ def generar_kpis(gerencia, mesa, analista):
         "Número de grupos": str(np.random.randint(100, 300))
     }
 
-# Generar KPIs basados en los filtros actuales
+
 kpis = generar_kpis(sel_ger, sel_mes, sel_ana)
 
-# Mostrar KPIs en 4 columnas
+
 cols = st.columns(4)
 with cols[0]:
     st.metric("Saldo capital", kpis["Saldo capital"])
@@ -63,7 +63,6 @@ with cols[2]:
 with cols[3]:
     st.metric("Número de grupos", kpis["Número de grupos"])
 
-# --- 4. Mapa ajustado (sin espacio extra) ---
 if sel_ana != "Todos":
     df_fit = df_mes[df_mes["Analista"] == sel_ana]
 elif sel_mes != "Todos":
@@ -97,6 +96,6 @@ def style_feat(feat):
 folium.GeoJson(gdf, style_function=style_feat, tooltip=folium.GeoJsonTooltip(fields=["jerarquia"])).add_to(m)
 m.fit_bounds([[b[1], b[0]], [b[3], b[2]]])
 
-# --- 5. Mapa SIN scroll (altura calculada dinámicamente) ---
+
 map_height = 630  # Ajusta este valor según tu pantalla
 st_folium(m, height=map_height, use_container_width=True)
